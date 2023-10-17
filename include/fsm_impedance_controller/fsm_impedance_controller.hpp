@@ -48,11 +48,28 @@ public:
     controller_interface::CallbackReturn on_init() override;
 
 private:
+
+    /**
+     * @brief Service which responds to requests to change gait phase
+     * 
+     * @param request contains the desired gait phase
+     * @param response an empty acknowledgement message
+     */
     void updateStateCallback(const std::shared_ptr<UpdateState::Request> request, std::shared_ptr<UpdateState::Response> response);
 
+    /**
+     * @brief Appends a new gait phase specified from the controller parameters
+     * 
+     * @param phaseName name of new gait phase
+     * @param gaitPhases existing list of gait phases
+     */
+    void modifyGaitStates(const std::string &phaseName, std::vector<State> &gaitPhases);
+
+    /** Handles the response to gait phase change requests */
     rclcpp::Service<UpdateState>::SharedPtr mUpdateStateServicePtr;
 
-    std::vector<State> gaitStates;
+    /** List of specified gait phases */
+    std::vector<State> mGaitStates;
 };
 
 }

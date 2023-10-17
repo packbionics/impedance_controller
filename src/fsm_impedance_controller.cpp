@@ -32,7 +32,16 @@ controller_interface::CallbackReturn FSMImpedanceController::on_init()
   // Retrieve a description of gait phases from set of parameters
   std::vector<std::string> phaseNames = this->get_node()->get_parameter("phases").as_string_array();
   for(size_t i = 0; i < phaseNames.size(); i++) {
-    RCLCPP_INFO(this->get_node()->get_logger(), "Found %s", phaseNames[i].c_str());
+
+    RCLCPP_INFO(this->get_node()->get_logger(), "Found '%s'", phaseNames[i].c_str());
+
+    modifyGaitStates(phaseNames[i], mGaitStates);
+
+    RCLCPP_INFO(this->get_node()->get_logger(), "Parameters for '%s':", phaseNames[i].c_str());
+
+    RCLCPP_INFO(this->get_node()->get_logger(), "\tStiffness = '%lf'", mGaitStates.back().params.stiffness);
+    RCLCPP_INFO(this->get_node()->get_logger(), "\tDamping = '%lf'", mGaitStates.back().params.damping);
+    RCLCPP_INFO(this->get_node()->get_logger(), "\tEquilibrium = '%lf'", mGaitStates.back().params.equilibrium);
   }
 
   // Create a service for updating the current gait phase
@@ -46,6 +55,26 @@ void FSMImpedanceController::updateStateCallback(const std::shared_ptr<UpdateSta
 {
   // TODO: Implement logic for switching between gait phases
   RCLCPP_INFO(this->get_node()->get_logger(), "State update request acknowledged.");
+}
+
+void FSMImpedanceController::modifyGaitStates(const std::string &phaseName, std::vector<State> &gaitPhases)
+{
+
+  // Create new gait phase
+  State newState;
+
+  // Extract gait phase description from parameters
+  try {
+    newState.params.stiffness = this->get_node()->get_parameter(phaseName + ".stiffness").as_double();
+    newState.params.damping = this->get_node()->get_parameter(phaseName + ".damping").as_double();
+    newState.params.equilibrium = this->get_node()->get_parameter(phaseName + ".equilibrium").as_double();
+  } catch(rclcpp::ParameterTypeException e) {
+    RCLCPP_ERROR(this->get_node()->get_logger(), "rclcpp::ParameterTypeException thrown while reading parameters for '%s'. Make sure parameters are given explicitly as doubles", phaseName.c_str());
+  }
+
+  // Append the gait phase to the list of gait phases
+  // TODO: This currently results in a copy. Allocating on heap may be more efficient
+  gaitPhases.push_back(newState);
 }
 
 }
