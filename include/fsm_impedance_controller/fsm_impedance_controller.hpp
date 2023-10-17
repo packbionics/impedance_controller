@@ -6,6 +6,10 @@
 namespace fsm_ic
 {
 
+/**
+ * @brief Implementation of a finite state machine-impedance controller
+ * 
+ */
 class FSMImpedanceController : public joint_trajectory_controller::JointTrajectoryController
 {
 
