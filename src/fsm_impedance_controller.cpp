@@ -35,13 +35,19 @@ controller_interface::CallbackReturn FSMImpedanceController::on_init()
 
     RCLCPP_INFO(this->get_node()->get_logger(), "Found '%s'", phaseNames[i].c_str());
 
-    modifyGaitStates(phaseNames[i], mGaitStates);
+    try {
+      modifyGaitStates(phaseNames[i], mGaitStates);
 
-    RCLCPP_INFO(this->get_node()->get_logger(), "Parameters for '%s':", phaseNames[i].c_str());
+      RCLCPP_INFO(this->get_node()->get_logger(), "Parameters for '%s':", phaseNames[i].c_str());
 
-    RCLCPP_INFO(this->get_node()->get_logger(), "\tStiffness = '%lf'", mGaitStates.back().params.stiffness);
-    RCLCPP_INFO(this->get_node()->get_logger(), "\tDamping = '%lf'", mGaitStates.back().params.damping);
-    RCLCPP_INFO(this->get_node()->get_logger(), "\tEquilibrium = '%lf'", mGaitStates.back().params.equilibrium);
+      RCLCPP_INFO(this->get_node()->get_logger(), "\tStiffness = '%lf'", mGaitStates.back().params.stiffness);
+      RCLCPP_INFO(this->get_node()->get_logger(), "\tDamping = '%lf'", mGaitStates.back().params.damping);
+      RCLCPP_INFO(this->get_node()->get_logger(), "\tEquilibrium = '%lf'", mGaitStates.back().params.equilibrium);
+
+    } catch(const rclcpp::ParameterTypeException &e) {
+      RCLCPP_ERROR(this->get_node()->get_logger(), "%s", e.what());
+      RCLCPP_WARN(this->get_node()->get_logger(), "ParameterTypeException thrown while reading parameters for '%s'. Make sure parameters are given explicitly as doubles", phaseNames[i].c_str());
+    }
   }
 
   // Create a service for updating the current gait phase
@@ -64,13 +70,9 @@ void FSMImpedanceController::modifyGaitStates(const std::string &phaseName, std:
   State newState;
 
   // Extract gait phase description from parameters
-  try {
-    newState.params.stiffness = this->get_node()->get_parameter(phaseName + ".stiffness").as_double();
-    newState.params.damping = this->get_node()->get_parameter(phaseName + ".damping").as_double();
-    newState.params.equilibrium = this->get_node()->get_parameter(phaseName + ".equilibrium").as_double();
-  } catch(rclcpp::ParameterTypeException e) {
-    RCLCPP_ERROR(this->get_node()->get_logger(), "rclcpp::ParameterTypeException thrown while reading parameters for '%s'. Make sure parameters are given explicitly as doubles", phaseName.c_str());
-  }
+  newState.params.stiffness = this->get_node()->get_parameter(phaseName + ".stiffness").as_double();
+  newState.params.damping = this->get_node()->get_parameter(phaseName + ".damping").as_double();
+  newState.params.equilibrium = this->get_node()->get_parameter(phaseName + ".equilibrium").as_double();
 
   // Append the gait phase to the list of gait phases
   // TODO: This currently results in a copy. Allocating on heap may be more efficient
