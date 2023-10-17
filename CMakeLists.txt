@@ -14,6 +14,7 @@ set(
   rclcpp
   rclcpp_lifecycle
   joint_trajectory_controller
+  packbionics_interfaces
 )
 
 # find dependencies

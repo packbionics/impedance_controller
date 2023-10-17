@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications copyright (C) 2023 Pack Bionics
+
 /* This header must be included by all rclcpp headers which declare symbols
  * which are defined in the rclcpp library. When not building the rclcpp
  * library, i.e. when using the headers in other package's code, the contents
