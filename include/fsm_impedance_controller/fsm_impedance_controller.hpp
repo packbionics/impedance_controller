@@ -25,13 +25,13 @@
 
 #include <joint_trajectory_controller/joint_trajectory_controller.hpp>
 
-#include <packbionics_interfaces/srv/update_state.hpp>
+#include <packbionics_interfaces/srv/update_impedance.hpp>
 
 #include "fsm_impedance_controller/visibility_control.h"
-#include "fsm_impedance_controller/state.hpp"
+#include "fsm_impedance_controller/impedance_params.hpp"
 
 // Define typedefs for reused data types
-typedef packbionics_interfaces::srv::UpdateState UpdateState;
+typedef packbionics_interfaces::srv::UpdateImpedance UpdateImpedance;
 
 namespace fsm_ic
 {
@@ -55,21 +55,13 @@ private:
      * @param request contains the desired gait phase
      * @param response an empty acknowledgement message
      */
-    void updateStateCallback(const std::shared_ptr<UpdateState::Request> request, std::shared_ptr<UpdateState::Response> response);
-
-    /**
-     * @brief Appends a new gait phase specified from the controller parameters
-     * 
-     * @param phaseName name of new gait phase
-     * @param gaitPhases existing list of gait phases
-     */
-    void modifyGaitStates(const std::string &phaseName, std::vector<State> &gaitPhases);
+    void updateImpedanceCallback(const std::shared_ptr<UpdateImpedance::Request> request, std::shared_ptr<UpdateImpedance::Response> response);
 
     /** Handles the response to gait phase change requests */
-    rclcpp::Service<UpdateState>::SharedPtr mUpdateStateServicePtr;
+    rclcpp::Service<UpdateImpedance>::SharedPtr mUpdateImpedanceServicePtr;
 
-    /** List of specified gait phases */
-    std::vector<State> mGaitStates;
+    /** Current impedance parameters */
+    ImpedanceParams mImpedanceParams;
 };
 
 }
