@@ -57,6 +57,12 @@ private:
      */
     void updateImpedanceCallback(const std::shared_ptr<UpdateImpedance::Request> request, std::shared_ptr<UpdateImpedance::Response> response);
 
+    /**
+     * @brief Loads the starting impedance parameters from provided parameter list
+     * 
+     */
+    void initializeImpedanceParams();
+
     /** Handles the response to gait phase change requests */
     rclcpp::Service<UpdateImpedance>::SharedPtr mUpdateImpedanceServicePtr;
 

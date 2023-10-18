@@ -29,6 +29,9 @@ controller_interface::CallbackReturn FSMImpedanceController::on_init()
   // Perform initializations for JointTrajectoryController
   controller_interface::CallbackReturn status = joint_trajectory_controller::JointTrajectoryController::on_init();
 
+  // Load initial impedance parameters
+  initializeImpedanceParams();
+
   // Create a service for updating the current gait phase
   auto updateImpedanceCallback = std::bind(&FSMImpedanceController::updateImpedanceCallback, this, std::placeholders::_1, std::placeholders::_2);
   mUpdateImpedanceServicePtr = this->get_node()->create_service<UpdateImpedance>("/fsm_impedance_controller/update_impedance", updateImpedanceCallback);
@@ -40,6 +43,35 @@ void FSMImpedanceController::updateImpedanceCallback(const std::shared_ptr<Updat
 {
   // TODO: Implement logic for switching between gait phases
   RCLCPP_INFO(this->get_node()->get_logger(), "Impedance update request acknowledged.");
+}
+
+void FSMImpedanceController::initializeImpedanceParams()
+{
+  try {
+
+    RCLCPP_INFO(this->get_node()->get_logger(), "Loading impedance parameters...");
+
+    mImpedanceParams.stiffness = this->get_node()->get_parameter("initial_stiffness").as_double();
+    RCLCPP_INFO(this->get_node()->get_logger(), "    %s = %lf", "initial_stiffness", mImpedanceParams.stiffness);
+
+    mImpedanceParams.damping = this->get_node()->get_parameter("initial_damping").as_double();
+    RCLCPP_INFO(this->get_node()->get_logger(), "    %s = %lf", "initial_damping", mImpedanceParams.damping);
+
+    mImpedanceParams.equilibrium = this->get_node()->get_parameter("initial_equilibrium").as_double();
+    RCLCPP_INFO(this->get_node()->get_logger(), "    %s = %lf", "initial_equilibrium", mImpedanceParams.equilibrium);
+
+  } catch(const rclcpp::ParameterTypeException &e) {
+    RCLCPP_ERROR(
+      this->get_node()->get_logger(),
+      "Failed to load impedance parameters. Make sure '%s', '%s', and '%s' are defined as parameters: %s",
+      "initial_stiffness",
+      "initial_damping",
+      "initial_equilibrium",
+      e.what()
+    );
+
+    throw e;
+  }
 }
 
 }
