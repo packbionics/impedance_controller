@@ -16,6 +16,7 @@ set(
   rclcpp_lifecycle
   realtime_tools
   packbionics_interfaces
+  trajectory_msgs
 )
 
 # find dependencies

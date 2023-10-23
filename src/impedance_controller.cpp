@@ -12,6 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Copyright (c) 2021 ros2_control Development Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "impedance_controller/impedance_controller.hpp"
 
 #include <algorithm>
@@ -22,11 +36,20 @@
 
 #include "controller_interface/helpers.hpp"
 #include "hardware_interface/loaned_command_interface.hpp"
+#include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/qos.hpp"
 
 namespace impedance_controller
 {
+
+bool contains_interface_type(
+  const std::vector<std::string> & interface_type_list, const std::string & interface_type)
+{
+  return std::find(interface_type_list.begin(), interface_type_list.end(), interface_type) !=
+         interface_type_list.end();
+}
+
 ImpedanceController::ImpedanceController()
 : controller_interface::ControllerInterface(),
   rt_command_ptr_(nullptr),
@@ -52,18 +75,73 @@ controller_interface::CallbackReturn ImpedanceController::on_init()
 controller_interface::CallbackReturn ImpedanceController::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  auto ret = this->read_parameters();
-  if (ret != controller_interface::CallbackReturn::SUCCESS)
+  const auto logger = get_node()->get_logger();
+
+  read_parameters();
+
+  // Joints must be specified
+  if (params_.joints.empty())
   {
-    return ret;
+    RCLCPP_ERROR(logger, "'joints' parameter is empty.");
+    return CallbackReturn::FAILURE;
   }
 
-  joints_command_subscriber_ = get_node()->create_subscription<CmdType>(
-    "~/commands", rclcpp::SystemDefaultsQoS(),
-    [this](const CmdType::SharedPtr msg) { rt_command_ptr_.writeFromNonRT(msg); });
+  // Check if only allowed interface types are used and initialize storage to avoid memory
+  // allocation during activation
+  
+  has_acceleration_command_interface_ = (interface_name_ == hardware_interface::HW_IF_ACCELERATION);
+  has_effort_command_interface_ = (interface_name_ == hardware_interface::HW_IF_EFFORT);
 
-  RCLCPP_INFO(get_node()->get_logger(), "configure successful");
-  return controller_interface::CallbackReturn::SUCCESS;
+  // Check if only allowed interface types are used and initialize storage to avoid memory
+  // allocation during activation
+  // Note: 'effort' storage is also here, but never used. Still, for this is OK.
+
+  has_position_state_interface_ =
+    contains_interface_type(params_.state_interfaces, hardware_interface::HW_IF_POSITION);
+  has_velocity_state_interface_ =
+    contains_interface_type(params_.state_interfaces, hardware_interface::HW_IF_VELOCITY);
+
+  // Validation of combinations of state and velocity together have to be done
+  // here because the parameter validators only deal with each parameter
+  // separately.
+  if (!has_velocity_state_interface_ || !has_position_state_interface_)
+  {
+    RCLCPP_ERROR(
+      logger,
+      "'velocity' and 'position' state interfaces must be present");
+    return CallbackReturn::FAILURE;
+  }
+
+  // effort is always used alone so no need for size check
+  if (!has_effort_command_interface_ || !has_acceleration_command_interface_)
+  {
+    RCLCPP_ERROR(
+      logger,
+      "'effort' or 'acceleration' command interfaces must be used");
+    return CallbackReturn::FAILURE;
+  }
+
+  auto get_interface_list = [](const std::vector<std::string> & interface_types)
+  {
+    std::stringstream ss_interfaces;
+    for (size_t index = 0; index < interface_types.size(); ++index)
+    {
+      if (index != 0)
+      {
+        ss_interfaces << " ";
+      }
+      ss_interfaces << interface_types[index];
+    }
+    return ss_interfaces.str();
+  };
+
+  // Print output so users can be sure the interface setup is correct
+  RCLCPP_INFO(
+    logger, "Command interface is [%s] and state interfaces are [%s].",
+    params_.interface_name.c_str(),
+    get_interface_list(params_.state_interfaces).c_str());
+
+  return CallbackReturn::SUCCESS;
 }
 
 controller_interface::InterfaceConfiguration
@@ -79,8 +157,17 @@ ImpedanceController::command_interface_configuration() const
 controller_interface::InterfaceConfiguration ImpedanceController::state_interface_configuration()
   const
 {
-  return controller_interface::InterfaceConfiguration{
-    controller_interface::interface_configuration_type::NONE};
+  controller_interface::InterfaceConfiguration conf;
+  conf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+  conf.names.reserve(dof_ * params_.state_interfaces.size());
+  for (const auto & joint_name : params_.joints)
+  {
+    for (const auto & interface_type : params_.state_interfaces)
+    {
+      conf.names.push_back(joint_name + "/" + interface_type);
+    }
+  }
+  return conf;
 }
 
 controller_interface::CallbackReturn ImpedanceController::on_activate(
@@ -145,6 +232,11 @@ controller_interface::return_type ImpedanceController::update(
   return controller_interface::return_type::OK;
 }
 
+void ImpedanceController::read_state_from_hardware(JointTrajectoryPoint & state)
+{
+  
+}
+
 void ImpedanceController::declare_parameters()
 {
   param_listener_ = std::make_shared<ParamListener>(get_node());
@@ -171,10 +263,17 @@ controller_interface::CallbackReturn ImpedanceController::read_parameters()
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  if (params_.state_interfaces.empty())
+  {
+    RCLCPP_ERROR(get_node()->get_logger(), "'state_interfaces' parameter was empty");
+  }
+
   for (const auto & joint : params_.joints)
   {
     command_interface_types_.push_back(joint + "/" + params_.interface_name);
   }
+
+  dof_ = params_.joints.size();
 
   return controller_interface::CallbackReturn::SUCCESS;
 }

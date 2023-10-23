@@ -9,3 +9,8 @@ impedance_controller:
     default_value: "",
     description: "Name of the interface to command",
   }
+  state_interfaces: {
+    type: string_array,
+    default_value: [],
+    description: "Name of the interfaces to read"
+  }
