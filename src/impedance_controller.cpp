@@ -30,6 +30,7 @@ namespace impedance_controller
 ImpedanceController::ImpedanceController()
 : controller_interface::ControllerInterface(),
   rt_command_ptr_(nullptr),
+  joints_command_service_(nullptr),
   joints_command_subscriber_(nullptr)
 {
 }
@@ -58,9 +59,16 @@ controller_interface::CallbackReturn ImpedanceController::on_configure(
     return ret;
   }
 
+  // Create topic to receive commands
   joints_command_subscriber_ = get_node()->create_subscription<CmdType>(
     "~/commands", rclcpp::SystemDefaultsQoS(),
     [this](const CmdType::SharedPtr msg) { rt_command_ptr_.writeFromNonRT(msg); });
+
+  // Create service to receive impedance parameters
+  auto srvCb = std::bind(&ImpedanceController::serviceCallback, this, std::placeholders::_1, std::placeholders::_2);
+
+  joints_command_service_ = get_node()->create_service<SrvType>(
+    "~/impedance_params", srvCb);
 
   RCLCPP_INFO(get_node()->get_logger(), "configure successful");
   return controller_interface::CallbackReturn::SUCCESS;
@@ -151,13 +159,13 @@ controller_interface::return_type ImpedanceController::update(
   {
     double signal;
 
-    for(int joint_idx = 0; joint_idx < state_interfaces_.size(); joint_idx += 2) {
+    for(size_t joint_idx = 0; joint_idx < state_interfaces_.size(); joint_idx += 2) {
 
       // Use the current position and velocity to compute acceleration / torque command
       double position = state_interfaces_[joint_idx].get_value();
       double velocity = state_interfaces_[joint_idx + 1].get_value();
 
-      signal = computeCommand(position, velocity, {.stiffness=1.0, .damping=1.0, .equilibrium=0.0});
+      signal = computeCommand(position, velocity, {1.0, 1.0, 0.0});
     }
 
     command_interfaces_[index].set_value(signal);
@@ -198,6 +206,20 @@ controller_interface::CallbackReturn ImpedanceController::read_parameters()
   }
 
   return controller_interface::CallbackReturn::SUCCESS;
+}
+
+void ImpedanceController::serviceCallback(const std::shared_ptr<SrvType::Request> req, std::shared_ptr<SrvType::Response>)
+{
+  impedance_params_.stiffness = req->stiffness;
+  impedance_params_.damping = req->damping;
+  impedance_params_.equilibrium = req->equilibrium;
+
+  RCLCPP_INFO(get_node()->get_logger(), 
+    "Updated impedance parameters: '%.3lf' '%.3lf' '%.3lf'",
+    impedance_params_.stiffness,
+    impedance_params_.damping,
+    impedance_params_.equilibrium
+  );
 }
 
 double ImpedanceController::computeCommand(double position, double velocity, const ImpedanceParams &params)
