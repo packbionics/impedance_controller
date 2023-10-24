@@ -25,7 +25,7 @@
 
 #include <gtest/gtest.h>
 
-TEST(TestLoadFSMImpedanceController, load_controller)
+TEST(TestLoadImpedanceController, load_controller)
 {
   std::shared_ptr<rclcpp::Executor> executor =
     std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
@@ -37,8 +37,8 @@ TEST(TestLoadFSMImpedanceController, load_controller)
 
   ASSERT_NE(
     cm.load_controller(
-      "load_fsm_impedance_controller",
-      "fsm_impedance_controller/FSMImpedanceController"),
+      "load_impedance_controller",
+      "impedance_controller/ImpedanceController"),
     nullptr);
 }
 

@@ -118,7 +118,7 @@ private:
 
   double computeCommand(double position, double velocity, const ImpedanceParams &params);
 
-  ImpedanceParams impedance_params_;
+  std::vector<ImpedanceParams> impedance_params_;
 };
 
 }  // namespace impedance_controller

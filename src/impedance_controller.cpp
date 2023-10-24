@@ -141,7 +141,7 @@ controller_interface::return_type ImpedanceController::update(
   auto joint_commands = rt_command_ptr_.readFromRT();
 
   // no command received yet
-  if (!joint_commands || !(*joint_commands))
+  if (impedance_params_.size() == 0)
   {
     return controller_interface::return_type::OK;
   }
@@ -181,6 +181,8 @@ void ImpedanceController::declare_parameters()
 
 controller_interface::CallbackReturn ImpedanceController::read_parameters()
 {
+
+  // Ensure the parameter listener is constructed
   if (!param_listener_)
   {
     RCLCPP_ERROR(get_node()->get_logger(), "Error encountered during init");
@@ -188,18 +190,21 @@ controller_interface::CallbackReturn ImpedanceController::read_parameters()
   }
   params_ = param_listener_->get_params();
 
+  // Make sure robot joints were described
   if (params_.joints.empty())
   {
     RCLCPP_ERROR(get_node()->get_logger(), "'joints' parameter was empty");
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  // Make sure a command interface was described
   if (params_.interface_name.empty())
   {
     RCLCPP_ERROR(get_node()->get_logger(), "'interface_name' parameter was empty");
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  // Specify command interface for each controlled joint
   for (const auto & joint : params_.joints)
   {
     command_interface_types_.push_back(joint + "/" + params_.interface_name);
@@ -210,20 +215,69 @@ controller_interface::CallbackReturn ImpedanceController::read_parameters()
 
 void ImpedanceController::serviceCallback(const std::shared_ptr<SrvType::Request> req, std::shared_ptr<SrvType::Response>)
 {
-  impedance_params_.stiffness = req->stiffness;
-  impedance_params_.damping = req->damping;
-  impedance_params_.equilibrium = req->equilibrium;
 
-  RCLCPP_INFO(get_node()->get_logger(), 
-    "Updated impedance parameters: '%.3lf' '%.3lf' '%.3lf'",
-    impedance_params_.stiffness,
-    impedance_params_.damping,
-    impedance_params_.equilibrium
-  );
+  // Check if the request itself is properly formatted
+  if(req->stiffness.size() == req->damping.size() && req->stiffness.size() == req->equilibrium.size())
+  {
+    RCLCPP_WARN(
+      get_node()->get_logger(), "command was improperly formatted [%zu %zu %zu]",
+      req->stiffness.size(), req->damping.size(), req->equilibrium.size()
+    );
+  }
+
+  // Check if size of input matches the number of controlled joints
+  if(req->stiffness.size() != joint_names_.size())
+  {
+    RCLCPP_WARN(
+      get_node()->get_logger(), "command size (%zu) does not match number of interfaces (%zu)",
+      req->stiffness.size(), joint_names_.size()
+    );
+
+    return;
+  }
+
+  // Allocate enough memory to fit all impedance parameters
+  if(impedance_params_.size() == 0) 
+  {
+    impedance_params_.resize(joint_names_.size());
+  }
+
+  // Update impedance parameters
+  for(size_t idx = 0; idx < req->stiffness.size(); idx++)
+  {
+    impedance_params_[idx].stiffness = req->stiffness[idx];
+    impedance_params_[idx].damping = req->damping[idx];
+    impedance_params_[idx].equilibrium = req->equilibrium[idx];
+  }
+
+  // Notify client of changes
+  for(size_t idx = 0; idx < impedance_params_.size(); idx++)
+  {
+    if(idx == 1)
+    {
+      RCLCPP_INFO(get_node()->get_logger(), 
+        "Updated impedance parameters: '%.3lf' '%.3lf' '%.3lf'",
+        impedance_params_[idx].stiffness,
+        impedance_params_[idx].damping,
+        impedance_params_[idx].equilibrium
+      );
+    } 
+    else
+    {
+      RCLCPP_INFO(get_node()->get_logger(), 
+        "'%.3lf' '%.3lf' '%.3lf'",
+        impedance_params_[idx].stiffness,
+        impedance_params_[idx].damping,
+        impedance_params_[idx].equilibrium
+      );
+    }
+  }
 }
 
 double ImpedanceController::computeCommand(double position, double velocity, const ImpedanceParams &params)
 {
+
+  // Apply the simplified impedance control law to system
   double error = params.equilibrium - position;
   return params.stiffness * error - params.damping * velocity;
 }
