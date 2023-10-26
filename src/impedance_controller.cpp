@@ -146,15 +146,6 @@ controller_interface::return_type ImpedanceController::update(
     return controller_interface::return_type::OK;
   }
 
-  if ((*joint_commands)->data.size() != command_interfaces_.size())
-  {
-    RCLCPP_ERROR_THROTTLE(
-      get_node()->get_logger(), *(get_node()->get_clock()), 1000,
-      "command size (%zu) does not match number of interfaces (%zu)",
-      (*joint_commands)->data.size(), command_interfaces_.size());
-    return controller_interface::return_type::ERROR;
-  }
-
   for (auto index = 0ul; index < command_interfaces_.size(); ++index)
   {
     double signal;
@@ -197,6 +188,8 @@ controller_interface::CallbackReturn ImpedanceController::read_parameters()
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  joint_names_ = params_.joints;
+
   // Make sure a command interface was described
   if (params_.interface_name.empty())
   {
@@ -217,7 +210,7 @@ void ImpedanceController::serviceCallback(const std::shared_ptr<SrvType::Request
 {
 
   // Check if the request itself is properly formatted
-  if(req->stiffness.size() == req->damping.size() && req->stiffness.size() == req->equilibrium.size())
+  if(req->stiffness.size() != req->damping.size() && req->stiffness.size() != req->equilibrium.size())
   {
     RCLCPP_WARN(
       get_node()->get_logger(), "command was improperly formatted [%zu %zu %zu]",
@@ -253,7 +246,7 @@ void ImpedanceController::serviceCallback(const std::shared_ptr<SrvType::Request
   // Notify client of changes
   for(size_t idx = 0; idx < impedance_params_.size(); idx++)
   {
-    if(idx == 1)
+    if(idx == 0)
     {
       RCLCPP_INFO(get_node()->get_logger(), 
         "Updated impedance parameters: '%.3lf' '%.3lf' '%.3lf'",
